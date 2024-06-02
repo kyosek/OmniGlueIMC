@@ -21,6 +21,7 @@ import cv2
 import numpy as np
 from omniglue import utils
 import tensorflow.compat.v1 as tf1
+import tensorflow as tf
 
 
 class SuperPointExtract:
@@ -34,12 +35,13 @@ class SuperPointExtract:
     """
 
     def __init__(self, model_path: str):
-        self.model_path = model_path
-        self._graph = tf1.Graph()
-        self._sess = tf1.Session(graph=self._graph)
-        tf1.saved_model.loader.load(
-            self._sess, [tf1.saved_model.tag_constants.SERVING], model_path
-        )
+        with tf.device('/CPU:0'):
+            self.model_path = model_path
+            self._graph = tf1.Graph()
+            self._sess = tf1.Session(graph=self._graph)
+            tf1.saved_model.loader.load(
+                self._sess, [tf1.saved_model.tag_constants.SERVING], model_path
+            )
 
     def __call__(
         self,

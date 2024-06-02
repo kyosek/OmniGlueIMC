@@ -93,34 +93,36 @@ def soft_assignment_to_match_matrix(
 
     def _range_like(x, dim):
         """Returns tensor with values (0, 1, 2, ..., N) for dimension in input x."""
-        return tf.range(tf.shape(x)[dim], dtype=x.dtype)
+        with tf.device('/CPU:0'):
+            return tf.range(tf.shape(x)[dim], dtype=x.dtype)
 
     # TODO(omniglue): batch loop & SparseTensor are slow. Optimize with tf ops.
-    matches = tf.TensorArray(tf.float32, size=tf.shape(soft_assignment)[0])
-    for i in range(tf.shape(soft_assignment)[0]):
-        # Iterate through batch and process one example at a time.
-        scores = tf.expand_dims(soft_assignment[i, :], 0)  # Shape: (1, N, M).
+    with tf.device('/CPU:0'):
+        matches = tf.TensorArray(tf.float32, size=tf.shape(soft_assignment)[0])
+        for i in range(tf.shape(soft_assignment)[0]):
+            # Iterate through batch and process one example at a time.
+            scores = tf.expand_dims(soft_assignment[i, :], 0)  # Shape: (1, N, M).
 
-        # Find indices for max values per row and per column.
-        max0 = tf.math.reduce_max(scores, axis=2)  # Shape: (1, N).
-        indices0 = tf.math.argmax(scores, axis=2)  # Shape: (1, N).
-        indices1 = tf.math.argmax(scores, axis=1)  # Shape: (1, M).
+            # Find indices for max values per row and per column.
+            max0 = tf.math.reduce_max(scores, axis=2)  # Shape: (1, N).
+            indices0 = tf.math.argmax(scores, axis=2)  # Shape: (1, N).
+            indices1 = tf.math.argmax(scores, axis=1)  # Shape: (1, M).
 
-        # Find matches from mutual argmax indices of each set of keypoints.
-        mutual = tf.expand_dims(_range_like(indices0, 1), 0) == tf.gather(
-            indices1, indices0, axis=1
-        )
+            # Find matches from mutual argmax indices of each set of keypoints.
+            mutual = tf.expand_dims(_range_like(indices0, 1), 0) == tf.gather(
+                indices1, indices0, axis=1
+            )
 
-        # Create match matrix from sets of index pairs and values.
-        kp_ind_pairs = tf.stack(
-            [_range_like(indices0, 1), tf.squeeze(indices0)], axis=1
-        )
-        mutual_max0 = tf.squeeze(tf.squeeze(tf.where(mutual, max0, 0), 0))
-        sparse = tf.sparse.SparseTensor(
-            kp_ind_pairs, mutual_max0, tf.shape(scores, out_type=tf.int64)[1:]
-        )
-        match_matrix = tf.sparse.to_dense(sparse)
-        matches = matches.write(i, match_matrix)
+            # Create match matrix from sets of index pairs and values.
+            kp_ind_pairs = tf.stack(
+                [_range_like(indices0, 1), tf.squeeze(indices0)], axis=1
+            )
+            mutual_max0 = tf.squeeze(tf.squeeze(tf.where(mutual, max0, 0), 0))
+            sparse = tf.sparse.SparseTensor(
+                kp_ind_pairs, mutual_max0, tf.shape(scores, out_type=tf.int64)[1:]
+            )
+            match_matrix = tf.sparse.to_dense(sparse)
+            matches = matches.write(i, match_matrix)
 
     # Threshold on match_threshold value and convert to binary (0, 1) values.
     match_matrix = matches.stack()

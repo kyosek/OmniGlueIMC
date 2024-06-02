@@ -119,45 +119,49 @@ class DINOExtract:
 def _preprocess_shape(
     h_image, w_image, image_size_max=630, h_down_rate=14, w_down_rate=14
 ):
-    # Flatten the tensors
-    h_image = tf.squeeze(h_image)
-    w_image = tf.squeeze(w_image)
-    # logging.info(h_image, w_image)
+    with tf.device('/CPU:0'):
+        # Flatten the tensors
+        h_image = tf.squeeze(h_image)
+        w_image = tf.squeeze(w_image)
+        # logging.info(h_image, w_image)
 
-    h_larger_flag = tf.greater(h_image, w_image)
-    large_side_image = tf.maximum(h_image, w_image)
+        h_larger_flag = tf.greater(h_image, w_image)
+        large_side_image = tf.maximum(h_image, w_image)
 
     # Function to calculate new dimensions when height is larger
     def resize_h_larger():
-        h_image_target = image_size_max
-        w_image_target = tf.cast(image_size_max * w_image / h_image, tf.int32)
+        with tf.device('/CPU:0'):
+            h_image_target = image_size_max
+            w_image_target = tf.cast(image_size_max * w_image / h_image, tf.int32)
         return h_image_target, w_image_target
 
     # Function to calculate new dimensions when width is larger or equal
     def resize_w_larger_or_equal():
-        w_image_target = image_size_max
-        h_image_target = tf.cast(image_size_max * h_image / w_image, tf.int32)
+        with tf.device('/CPU:0'):
+            w_image_target = image_size_max
+            h_image_target = tf.cast(image_size_max * h_image / w_image, tf.int32)
         return h_image_target, w_image_target
 
     # Function to keep original dimensions
     def keep_original():
         return h_image, w_image
 
-    h_image_target, w_image_target = tf.cond(
-        tf.greater(large_side_image, image_size_max),
-        lambda: tf.cond(h_larger_flag, resize_h_larger, resize_w_larger_or_equal),
-        keep_original,
-    )
+    with tf.device('/CPU:0'):
+        h_image_target, w_image_target = tf.cond(
+            tf.greater(large_side_image, image_size_max),
+            lambda: tf.cond(h_larger_flag, resize_h_larger, resize_w_larger_or_equal),
+            keep_original,
+        )
 
-    # resize to be divided by patch size
-    h = h_image_target // h_down_rate
-    w = w_image_target // w_down_rate
-    h_resize = h * h_down_rate
-    w_resize = w * w_down_rate
+        # resize to be divided by patch size
+        h = h_image_target // h_down_rate
+        w = w_image_target // w_down_rate
+        h_resize = h * h_down_rate
+        w_resize = w * w_down_rate
 
-    # Expand dimensions
-    h_resize = tf.expand_dims(h_resize, 0)
-    w_resize = tf.expand_dims(w_resize, 0)
+        # Expand dimensions
+        h_resize = tf.expand_dims(h_resize, 0)
+        w_resize = tf.expand_dims(w_resize, 0)
 
     return h_resize, w_resize
 
@@ -177,35 +181,36 @@ def get_dino_descriptors(dino_features, keypoints, height, width, feature_dim):
       Interpolated DINO descriptors.
     """
     # TODO(omniglue): fix the hard-coded DINO patch size (14).
-    height_1d = tf.reshape(height, [1])
-    width_1d = tf.reshape(width, [1])
+    with tf.device('/CPU:0'):
+        height_1d = tf.reshape(height, [1])
+        width_1d = tf.reshape(width, [1])
 
-    height_1d_resized, width_1d_resized = _preprocess_shape(
-        height_1d, width_1d, image_size_max=630, h_down_rate=14, w_down_rate=14
-    )
-
-    height_feat = height_1d_resized // 14
-    width_feat = width_1d_resized // 14
-    feature_dim_1d = tf.reshape(feature_dim, [1])
-
-    size_feature = tf.concat([height_feat, width_feat, feature_dim_1d], axis=0)
-    dino_features = tf.reshape(dino_features, size_feature)
-
-    img_size = tf.cast(tf.concat([width_1d, height_1d], axis=0), tf.float32)
-    feature_size = tf.cast(tf.concat([width_feat, height_feat], axis=0), tf.float32)
-
-    keypoints_feature = (
-        keypoints
-        / tf.expand_dims(img_size, axis=0)
-        * tf.expand_dims(feature_size, axis=0)
-    )
-
-    dino_descriptors = []
-    for kp in keypoints_feature:
-        dino_descriptors.append(
-            utils.lookup_descriptor_bilinear(kp.numpy(), dino_features.numpy())
+        height_1d_resized, width_1d_resized = _preprocess_shape(
+            height_1d, width_1d, image_size_max=630, h_down_rate=14, w_down_rate=14
         )
-    dino_descriptors = tf.convert_to_tensor(
-        np.array(dino_descriptors), dtype=tf.float32
-    )
+
+        height_feat = height_1d_resized // 14
+        width_feat = width_1d_resized // 14
+        feature_dim_1d = tf.reshape(feature_dim, [1])
+
+        size_feature = tf.concat([height_feat, width_feat, feature_dim_1d], axis=0)
+        dino_features = tf.reshape(dino_features, size_feature)
+
+        img_size = tf.cast(tf.concat([width_1d, height_1d], axis=0), tf.float32)
+        feature_size = tf.cast(tf.concat([width_feat, height_feat], axis=0), tf.float32)
+
+        keypoints_feature = (
+            keypoints
+            / tf.expand_dims(img_size, axis=0)
+            * tf.expand_dims(feature_size, axis=0)
+        )
+
+        dino_descriptors = []
+        for kp in keypoints_feature:
+            dino_descriptors.append(
+                utils.lookup_descriptor_bilinear(kp.numpy(), dino_features.numpy())
+            )
+        dino_descriptors = tf.convert_to_tensor(
+            np.array(dino_descriptors), dtype=tf.float32
+        )
     return dino_descriptors
