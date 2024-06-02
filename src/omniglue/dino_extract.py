@@ -64,7 +64,7 @@ class DINOExtract:
   def _resize_input_image(
       self, image: np.ndarray, interpolation=cv2.INTER_LINEAR
   ):
-    """Resizes image such that both dimensions are divisble by down_rate."""
+    """Resizes image such that both dimensions are divisible by down_rate."""
     h_image, w_image = image.shape[:2]
     h_larger_flag = h_image > w_image
     large_side_image = max(h_image, w_image)
