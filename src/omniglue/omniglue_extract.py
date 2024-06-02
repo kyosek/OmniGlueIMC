@@ -28,21 +28,23 @@ class OmniGlue:
     # TODO(omniglue): class docstring
 
     def __init__(
-            self,
-            og_export: str,
-            sp_export: str | None = None,
-            dino_export: str | None = None,
+        self,
+        og_export: str,
+        sp_export: str | None = None,
+        dino_export: str | None = None,
     ) -> None:
-        with tf.device('/CPU:0'):
+        with tf.device("/CPU:0"):
             self.matcher = tf.saved_model.load(og_export)
             if sp_export is not None:
                 self.sp_extract = superpoint_extract.SuperPointExtract(sp_export)
             if dino_export is not None:
-                self.dino_extract = dino_extract.DINOExtract(dino_export, feature_layer=1)
+                self.dino_extract = dino_extract.DINOExtract(
+                    dino_export, feature_layer=1
+                )
 
     def FindMatches(self, image0: np.ndarray, image1: np.ndarray):
         """TODO(omniglue): docstring."""
-        with tf.device('/CPU:0'):
+        with tf.device("/CPU:0"):
             height0, width0 = image0.shape[:2]
             height1, width1 = image1.shape[:2]
             sp_features0 = self.sp_extract(image0)
@@ -89,7 +91,9 @@ class OmniGlue:
             keep = []
             for i in range(match_indices.shape[0]):
                 match = match_indices[i, :]
-                if (sp_features0[2][match[0]] > 0.0) and (sp_features1[2][match[1]] > 0.0):
+                if (sp_features0[2][match[0]] > 0.0) and (
+                    sp_features1[2][match[1]] > 0.0
+                ):
                     keep.append(i)
             match_indices = match_indices[keep]
 
@@ -110,17 +114,17 @@ class OmniGlue:
     ### Private methods ###
 
     def _construct_inputs(
-            self,
-            width0,
-            height0,
-            width1,
-            height1,
-            sp_features0,
-            sp_features1,
-            dino_descriptors0,
-            dino_descriptors1,
+        self,
+        width0,
+        height0,
+        width1,
+        height1,
+        sp_features0,
+        sp_features1,
+        dino_descriptors0,
+        dino_descriptors1,
     ):
-        with tf.device('/CPU:0'):
+        with tf.device("/CPU:0"):
             inputs = {
                 "keypoints0": tf.convert_to_tensor(
                     np.expand_dims(sp_features0[0], axis=0),
