@@ -14,13 +14,15 @@
 
 """Wrapper for performing SuperPoint inference."""
 
-import math
+import os
 from typing import Optional, Tuple
 
 import cv2
 import numpy as np
 from omniglue import utils
 import tensorflow.compat.v1 as tf1
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 
 class SuperPointExtract:
